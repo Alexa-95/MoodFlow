@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
-import type { Tracker } from '../lib/types';
+import type { Tracker, TrackerType } from '../lib/types';
+import { describeError } from '../lib/errors';
 import { Notice } from './ui/Notice';
 
 type Props = {
   trackers: Tracker[];
-  onAdd: (name: string, unit: string, scaleMax: number) => Promise<void>;
+  onAdd: (
+    name: string,
+    type: TrackerType,
+    unit: string,
+    scaleMax: number,
+  ) => Promise<void>;
 };
 
 const inputClassName =
@@ -13,6 +19,7 @@ const inputClassName =
 
 export function TrackerForm({ trackers, onAdd }: Props) {
   const [name, setName] = useState('');
+  const [type, setType] = useState<TrackerType>('number');
   const [unit, setUnit] = useState('');
   const [scale, setScale] = useState('5');
   const [busy, setBusy] = useState(false);
@@ -20,12 +27,12 @@ export function TrackerForm({ trackers, onAdd }: Props) {
 
   async function submit(): Promise<void> {
     const trimmedName = name.trim();
-    const scaleMax = Number(scale);
     if (!trimmedName || trimmedName.length > 40) {
       setErrorMessage('Podaj nazwę wskaźnika (maksymalnie 40 znaków).');
       return;
     }
-    if (!Number.isFinite(scaleMax) || scaleMax <= 0 || scaleMax > 10000) {
+    const scaleMax = type === 'number' ? Number(scale) : 5;
+    if (type === 'number' && (!Number.isFinite(scaleMax) || scaleMax <= 0 || scaleMax > 10000)) {
       setErrorMessage('Maksymalna wartość skali musi być większa od 0 i nie większa niż 10 000.');
       return;
     }
@@ -33,12 +40,13 @@ export function TrackerForm({ trackers, onAdd }: Props) {
     setBusy(true);
     setErrorMessage('');
     try {
-      await onAdd(trimmedName, unit.trim(), scaleMax);
+      await onAdd(trimmedName, type, type === 'number' ? unit.trim() : '', scaleMax);
       setName('');
       setUnit('');
       setScale('5');
+      setType('number');
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Nie udało się dodać wskaźnika.');
+      setErrorMessage(describeError(error, 'Nie udało się dodać wskaźnika.'));
     } finally {
       setBusy(false);
     }
@@ -64,30 +72,68 @@ export function TrackerForm({ trackers, onAdd }: Props) {
         placeholderTextColor="#93A2B9"
         value={name}
       />
-      <View className="flex-row gap-2.5">
-        <View className="flex-1">
-          <Text className="mb-[9px] mt-4 text-xs font-semibold text-[#D7DFEB]">Jednostka</Text>
-          <TextInput
-            className={inputClassName}
-            maxLength={12}
-            onChangeText={setUnit}
-            placeholder="np. szkl."
-            placeholderTextColor="#93A2B9"
-            value={unit}
-          />
-        </View>
-        <View className="w-[84px]">
-          <Text className="mb-[9px] mt-4 text-xs font-semibold text-[#D7DFEB]">Skala do</Text>
-          <TextInput
-            className={inputClassName}
-            keyboardType="decimal-pad"
-            onChangeText={(value) => setScale(value.replace(',', '.'))}
-            placeholder="5"
-            placeholderTextColor="#93A2B9"
-            value={scale}
-          />
-        </View>
+      <Text className="mb-[9px] mt-4 text-xs font-semibold text-[#D7DFEB]">Typ wartości</Text>
+      <View className="flex-row flex-wrap gap-2">
+        {([
+          { key: 'number', label: 'Liczba' },
+          { key: 'text', label: 'Tekst' },
+          { key: 'boolean', label: 'Tak / Nie' },
+        ] as const).map((option) => {
+          const selected = type === option.key;
+          return (
+            <Pressable
+              key={option.key}
+              accessibilityRole="button"
+              onPress={() => setType(option.key)}
+              className={`rounded-full border px-3 py-2 ${
+                selected
+                  ? 'border-[#46683D] bg-flow-accent-dark'
+                  : 'border-flow-border bg-flow-raised'
+              }`}
+            >
+              <Text
+                className={`text-[11px] font-semibold ${
+                  selected ? 'text-flow-accent' : 'text-flow-muted'
+                }`}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
+      {type === 'number' ? (
+        <View className="flex-row gap-2.5">
+          <View className="flex-1">
+            <Text className="mb-[9px] mt-4 text-xs font-semibold text-[#D7DFEB]">Jednostka</Text>
+            <TextInput
+              className={inputClassName}
+              maxLength={12}
+              onChangeText={setUnit}
+              placeholder="np. szkl."
+              placeholderTextColor="#93A2B9"
+              value={unit}
+            />
+          </View>
+          <View className="w-[84px]">
+            <Text className="mb-[9px] mt-4 text-xs font-semibold text-[#D7DFEB]">Skala do</Text>
+            <TextInput
+              className={inputClassName}
+              keyboardType="decimal-pad"
+              onChangeText={(value) => setScale(value.replace(',', '.'))}
+              placeholder="5"
+              placeholderTextColor="#93A2B9"
+              value={scale}
+            />
+          </View>
+        </View>
+      ) : (
+        <Text className="mt-3 text-[11px] leading-[17px] text-flow-muted">
+          {type === 'text'
+            ? 'Wpis tekstowy nie będzie uwzględniany na mapie kolorowych kwadratów.'
+            : 'Wybór Tak / Nie będzie widoczny na mapie jako wartość 1 / 0.'}
+        </Text>
+      )}
       <Pressable
         className={`mt-4 min-h-[43px] flex-row items-center justify-center rounded-[10px] border border-[#46683D] bg-flow-accent-dark px-2.5 ${
           busy || !name.trim() ? 'opacity-55' : 'active:opacity-80'
@@ -116,7 +162,10 @@ export function TrackerForm({ trackers, onAdd }: Props) {
               className="flex-row items-center gap-[6px] rounded-full bg-flow-raised px-[9px] py-1.5"
             >
               <View className="h-1.5 w-1.5 rounded-full bg-flow-teal" />
-              <Text className="text-[10px] text-[#D9E1EC]">{tracker.name}</Text>
+              <Text className="text-[10px] text-[#D9E1EC]">
+                {tracker.name}
+                {tracker.type === 'text' ? ' · tekst' : tracker.type === 'boolean' ? ' · tak/nie' : ''}
+              </Text>
             </View>
           ))}
         </View>

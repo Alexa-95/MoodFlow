@@ -22,7 +22,8 @@ import {
   supabase,
 } from './src/lib/backend';
 import { PERIOD_DAYS } from './src/lib/types';
-import type { DailyEntry, Period, Tracker } from './src/lib/types';
+import type { DailyEntry, Period, Tracker, TrackerType, TrackerValue } from './src/lib/types';
+import { describeError } from './src/lib/errors';
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -63,7 +64,7 @@ export default function App() {
       })
       .catch((error: unknown) => {
         if (active) {
-          setErrorMessage(error instanceof Error ? error.message : 'Nie udało się sprawdzić sesji.');
+          setErrorMessage(describeError(error, 'Nie udało się sprawdzić sesji.'));
           setAuthReady(true);
         }
       });
@@ -114,7 +115,7 @@ export default function App() {
       })
       .catch((error: unknown) => {
         if (active) {
-          setErrorMessage(error instanceof Error ? error.message : 'Nie udało się pobrać danych.');
+          setErrorMessage(describeError(error, 'Nie udało się pobrać danych.'));
         }
       })
       .finally(() => {
@@ -138,18 +139,32 @@ export default function App() {
       const saved = sortedEntries.find((entry) => entry.entryDate === date);
       if (
         date === today &&
-        (mood !== null || energy !== null || sleep !== '' || Object.values(customValues).some(Boolean))
+        (mood !== null ||
+          energy !== null ||
+          sleep !== '' ||
+          Object.values(customValues).some((value) => value.trim() !== ''))
       ) {
+        const draftCustomValues: Record<string, TrackerValue> = {};
+        for (const [key, rawValue] of Object.entries(customValues)) {
+          const tracker = trackers.find((item) => item.id === key);
+          if (!tracker || rawValue.trim() === '') continue;
+          if (tracker.type === 'text') {
+            draftCustomValues[key] = rawValue;
+          } else if (tracker.type === 'boolean') {
+            if (rawValue === 'true' || rawValue === 'false') {
+              draftCustomValues[key] = rawValue === 'true';
+            }
+          } else {
+            const value = Number(rawValue);
+            if (Number.isFinite(value)) draftCustomValues[key] = value;
+          }
+        }
         const draft: DailyEntry = {
           entryDate: today,
           mood,
           energy,
           sleep: sleep === '' ? null : Number(sleep),
-          customValues: Object.fromEntries(
-            Object.entries(customValues)
-              .filter(([, value]) => value.trim() !== '' && Number.isFinite(Number(value)))
-              .map(([key, value]) => [key, Number(value)]),
-          ),
+          customValues: draftCustomValues,
         };
         return isEntryFilled(draft)
           ? draft
@@ -157,7 +172,7 @@ export default function App() {
       }
       return saved ?? { entryDate: date, mood: null, energy: null, sleep: null, customValues: {} };
     });
-  }, [customValues, energy, mood, period, sleep, sortedEntries, today]);
+  }, [customValues, energy, mood, period, sleep, sortedEntries, today, trackers]);
 
   const completedDays = displayEntries.filter(
     (entry) => metricValue(entry, metric, trackers) !== null,
@@ -181,7 +196,7 @@ export default function App() {
         setAuthMessage('Konto utworzone. Sprawdź skrzynkę e-mail, aby potwierdzić adres.');
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Nie udało się zalogować.');
+      setErrorMessage(describeError(error, 'Nie udało się zalogować.'));
     } finally {
       setAuthBusy(false);
     }
@@ -191,7 +206,7 @@ export default function App() {
     if (!supabase) return;
     setErrorMessage('');
     const { error } = await supabase.auth.signOut();
-    if (error) setErrorMessage(error.message);
+    if (error) setErrorMessage(describeError(error, 'Nie udało się wylogować.'));
   }
 
   async function handleSaveEntry(): Promise<void> {
@@ -202,16 +217,28 @@ export default function App() {
       return;
     }
 
-    const parsedCustom: Record<string, number> = {};
+    const savedCustomValues: Record<string, TrackerValue> = {};
     for (const tracker of trackers) {
       const rawValue = customValues[tracker.id]?.trim();
       if (!rawValue) continue;
+      if (tracker.type === 'text') {
+        savedCustomValues[tracker.id] = customValues[tracker.id];
+        continue;
+      }
+      if (tracker.type === 'boolean') {
+        if (rawValue !== 'true' && rawValue !== 'false') {
+          setErrorMessage(`Wybierz „Tak” albo „Nie” dla wskaźnika „${tracker.name}”.`);
+          return;
+        }
+        savedCustomValues[tracker.id] = rawValue === 'true';
+        continue;
+      }
       const value = Number(rawValue);
       if (!Number.isFinite(value) || value < 0 || value > tracker.scaleMax) {
         setErrorMessage(`Wskaźnik „${tracker.name}” musi mieć wartość od 0 do ${tracker.scaleMax}.`);
         return;
       }
-      parsedCustom[tracker.id] = value;
+      savedCustomValues[tracker.id] = value;
     }
 
     setSavingEntry(true);
@@ -221,7 +248,7 @@ export default function App() {
       mood,
       energy,
       sleep: parsedSleep,
-      customValues: parsedCustom,
+      customValues: savedCustomValues,
     };
     try {
       await saveDailyEntry(userId, nextEntry);
@@ -230,15 +257,20 @@ export default function App() {
         nextEntry,
       ]);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Nie udało się zapisać wpisu.');
+      setErrorMessage(describeError(error, 'Nie udało się zapisać wpisu.'));
     } finally {
       setSavingEntry(false);
     }
   }
 
-  async function handleAddTracker(name: string, unit: string, scaleMax: number): Promise<void> {
+  async function handleAddTracker(
+    name: string,
+    type: TrackerType,
+    unit: string,
+    scaleMax: number,
+  ): Promise<void> {
     if (!userId) throw new Error('Najpierw zaloguj się na konto.');
-    const tracker = await addCustomTracker(userId, name, unit, scaleMax);
+    const tracker = await addCustomTracker(userId, name, type, unit, scaleMax);
     setTrackers((previous) => [...previous, tracker]);
   }
 

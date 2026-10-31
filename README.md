@@ -1,9 +1,10 @@
 # MoodFlow
 
 MoodFlow is a shared-code Expo app for Android, iOS, and the web. It tracks mood,
-energy, sleep, and custom numeric habits in a daily pixel calendar. Without
-Supabase environment variables, it runs in local demo mode and saves data only
-on the current device/browser.
+energy, sleep, and custom numeric, text, or yes/no habits. Numeric and yes/no
+values appear in the daily pixel calendar; text answers stay out of the color
+scale. Without Supabase environment variables, it runs in local demo mode and
+saves data only on the current device/browser.
 
 The interface uses [NativeWind](https://www.nativewind.dev/) (Tailwind CSS 3)
 classes, shared across native and web targets. Screen and dashboard components
@@ -17,8 +18,10 @@ are kept in `src/components/`, and reusable date/heatmap helpers are in
    password private; the app does not need it.
 2. In the Supabase dashboard, open **SQL Editor**, paste the contents of
    [`supabase/schema.sql`](./supabase/schema.sql), and run it. This creates the
-   tracker and daily-entry tables and restricts each account to its own rows
-   with Row Level Security (RLS).
+   tracker and daily-entry tables, adds the tracker value type to an existing
+   table if needed, and restricts each account to its own rows with Row Level
+   Security (RLS). If your tables already exist, run the updated SQL script
+   again to add the new tracker type column.
 3. In **Project Settings → API** (or **Connect**), copy the Project URL and the
    publishable key (`sb_publishable_...`). The legacy `anon` key is also usable.
    Never put a `service_role` or secret key in this app.
@@ -54,5 +57,5 @@ are kept in `src/components/`, and reusable date/heatmap helpers are in
 - `npx expo install --check` — verify Expo-compatible package versions
 
 Daily, weekly, monthly, and quarterly views show the last 1, 7, 30, or 90 days.
-The pixel color represents the selected metric or an average of the available
-metrics for that day.
+The pixel color represents the selected numeric or yes/no metric, or an average
+of available numeric and yes/no metrics for that day. Text values are excluded.

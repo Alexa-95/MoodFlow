@@ -1,5 +1,5 @@
 import { ScrollView, Text, View } from 'react-native';
-import type { DailyEntry, Period, Tracker } from '../lib/types';
+import type { DailyEntry, Period, Tracker, TrackerType } from '../lib/types';
 import type { MetricKey } from '../lib/dashboard';
 import { DailyCheckInCard } from './DailyCheckInCard';
 import { DashboardHeader } from './DashboardHeader';
@@ -38,7 +38,12 @@ type Props = {
   onSleepChange: (value: string) => void;
   onCustomValueChange: (trackerId: string, value: string) => void;
   onSaveEntry: () => void;
-  onAddTracker: (name: string, unit: string, scaleMax: number) => Promise<void>;
+  onAddTracker: (
+    name: string,
+    type: TrackerType,
+    unit: string,
+    scaleMax: number,
+  ) => Promise<void>;
 };
 
 export function Dashboard({

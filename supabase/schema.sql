@@ -2,10 +2,16 @@ create table if not exists public.custom_trackers (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null check (char_length(name) between 1 and 40),
+  tracker_type text not null default 'number'
+    check (tracker_type in ('number', 'text', 'boolean')),
   unit text not null default '' check (char_length(unit) <= 12),
   scale_max numeric not null default 5 check (scale_max > 0 and scale_max <= 10000),
   created_at timestamptz not null default now()
 );
+
+alter table public.custom_trackers
+  add column if not exists tracker_type text not null default 'number'
+  check (tracker_type in ('number', 'text', 'boolean'));
 
 create table if not exists public.daily_entries (
   id uuid primary key default gen_random_uuid(),
@@ -22,11 +28,17 @@ create table if not exists public.daily_entries (
 alter table public.custom_trackers enable row level security;
 alter table public.daily_entries enable row level security;
 
+drop policy if exists "Users manage their own custom trackers"
+on public.custom_trackers;
+
 create policy "Users manage their own custom trackers"
 on public.custom_trackers for all
 to authenticated
 using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users manage their own daily entries"
+on public.daily_entries;
 
 create policy "Users manage their own daily entries"
 on public.daily_entries for all

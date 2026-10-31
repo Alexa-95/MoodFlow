@@ -49,8 +49,12 @@ function getMetricValues(entry: DailyEntry, trackers: Tracker[]): number[] {
     ...(entry.energy === null ? [] : [entry.energy / 5]),
     ...(entry.sleep === null ? [] : [Math.min(entry.sleep / 10, 1)]),
     ...trackers.flatMap((tracker) => {
+      if (tracker.type === 'text') return [];
       const value = entry.customValues[tracker.id];
-      return value === undefined ? [] : [Math.min(value / tracker.scaleMax, 1)];
+      if (tracker.type === 'boolean') {
+        return typeof value === 'boolean' ? [value ? 1 : 0] : [];
+      }
+      return typeof value === 'number' ? [Math.min(value / tracker.scaleMax, 1)] : [];
     }),
   ];
 }
@@ -69,7 +73,9 @@ export function metricValue(
   if (key === 'sleep') return entry.sleep === null ? null : Math.min(entry.sleep / 10, 1);
   const tracker = trackers.find((item) => item.id === key);
   const value = entry.customValues[key];
-  return !tracker || value === undefined ? null : Math.min(value / tracker.scaleMax, 1);
+  if (!tracker || value === undefined || tracker.type === 'text') return null;
+  if (tracker.type === 'boolean') return typeof value === 'boolean' ? Number(value) : null;
+  return typeof value === 'number' ? Math.min(value / tracker.scaleMax, 1) : null;
 }
 
 export function pixelColor(value: number | null): string {

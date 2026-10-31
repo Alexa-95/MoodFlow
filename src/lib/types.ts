@@ -1,6 +1,11 @@
+export type TrackerType = 'number' | 'text' | 'boolean';
+
+export type TrackerValue = number | string | boolean;
+
 export type Tracker = {
   id: string;
   name: string;
+  type: TrackerType;
   unit: string;
   scaleMax: number;
 };
@@ -10,7 +15,7 @@ export type DailyEntry = {
   mood: number | null;
   energy: number | null;
   sleep: number | null;
-  customValues: Record<string, number>;
+  customValues: Record<string, TrackerValue>;
 };
 
 export type TrackerSnapshot = {

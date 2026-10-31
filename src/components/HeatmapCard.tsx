@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { PERIODS, metricValue, pixelColor } from '../lib/dashboard';
 import type { DailyEntry, Period, Tracker } from '../lib/types';
@@ -22,6 +23,9 @@ const METRICS = [
   { key: 'sleep', label: 'Sen' },
 ];
 
+const GRID_COLUMNS = 7;
+const GRID_GAP = 6;
+
 export function HeatmapCard({
   period,
   metric,
@@ -33,6 +37,11 @@ export function HeatmapCard({
   onPeriodChange,
   onMetricChange,
 }: Props) {
+  const [gridWidth, setGridWidth] = useState(0);
+  const pixelSize = gridWidth
+    ? Math.floor((gridWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS)
+    : 0;
+
   return (
     <View className="min-h-[310px] rounded-[18px] border border-flow-border bg-flow-surface p-[22px]">
       <View className="mb-[22px] flex-row items-center justify-between gap-3">
@@ -79,7 +88,12 @@ export function HeatmapCard({
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View className="mb-[17px] flex-row gap-[7px]">
-          {[...METRICS, ...trackers.map((tracker) => ({ key: tracker.id, label: tracker.name }))].map(
+          {          [
+            ...METRICS,
+            ...trackers
+              .filter((tracker) => tracker.type !== 'text')
+              .map((tracker) => ({ key: tracker.id, label: tracker.name })),
+          ].map(
             (item) => {
               const selected = metric === item.key;
               return (
@@ -106,14 +120,20 @@ export function HeatmapCard({
         </View>
       </ScrollView>
 
-      <View className="min-h-[108px] justify-center">
+      <View className="min-h-[108px] w-full justify-center">
         {loading ? (
           <View className="flex-row items-center gap-2.5 py-6">
             <ActivityIndicator color="#A8F27A" />
             <Text className="text-xs text-flow-muted">Ładowanie wpisów…</Text>
           </View>
         ) : (
-          <View className="flex-row flex-wrap justify-start gap-1.5">
+          <View
+            className="w-full flex-row flex-wrap justify-start gap-[6px]"
+            onLayout={(event) => {
+              const nextWidth = event.nativeEvent.layout.width;
+              setGridWidth((previous) => (previous === nextWidth ? previous : nextWidth));
+            }}
+          >
             {entries.map((entry) => {
               const value = metricValue(entry, metric, trackers);
               return (
@@ -122,10 +142,14 @@ export function HeatmapCard({
                   accessibilityLabel={`${entry.entryDate}: ${
                     value === null ? 'brak wpisu' : `${Math.round(value * 100)}%`
                   }`}
-                  className={`aspect-square w-[12%] rounded-[5px] ${
+                  className={`rounded-[5px] ${
                     entry.entryDate === today ? 'border-2 border-flow-text' : ''
                   }`}
-                  style={{ backgroundColor: pixelColor(value) }}
+                  style={{
+                    width: pixelSize,
+                    height: pixelSize,
+                    backgroundColor: pixelColor(value),
+                  }}
                 />
               );
             })}

@@ -136,18 +136,63 @@ export function DailyCheckInCard({
               <View className="flex-1">
                 <Text className="mb-1 text-[13px] font-semibold text-flow-text">{tracker.name}</Text>
                 <Text className="text-[11px] text-flow-muted">
-                  0–{tracker.scaleMax}{tracker.unit ? ` ${tracker.unit}` : ''}
+                  {tracker.type === 'number'
+                    ? `0–${tracker.scaleMax}${tracker.unit ? ` ${tracker.unit}` : ''}`
+                    : tracker.type === 'text'
+                      ? 'Odpowiedź tekstowa'
+                      : 'Wybierz tak albo nie'}
                 </Text>
               </View>
-              <TextInput
-                accessibilityLabel={tracker.name}
-                className="min-h-10 w-[85px] rounded-[9px] border border-flow-border bg-flow-raised px-2 text-center text-sm text-flow-text"
-                keyboardType="decimal-pad"
-                onChangeText={(value) => onCustomValueChange(tracker.id, value.replace(',', '.'))}
-                placeholder="—"
-                placeholderTextColor="#93A2B9"
-                value={customValues[tracker.id] ?? ''}
-              />
+              {tracker.type === 'boolean' ? (
+                <View className="flex-row gap-2">
+                  {[
+                    { value: 'true', label: 'Tak' },
+                    { value: 'false', label: 'Nie' },
+                  ].map((option) => {
+                    const selected = customValues[tracker.id] === option.value;
+                    return (
+                      <Pressable
+                        key={option.value}
+                        accessibilityRole="button"
+                        onPress={() =>
+                          onCustomValueChange(tracker.id, selected ? '' : option.value)
+                        }
+                        className={`min-w-[58px] items-center rounded-[9px] border px-3 py-2 ${
+                          selected
+                            ? 'border-flow-accent bg-flow-accent-dark'
+                            : 'border-flow-border bg-flow-raised'
+                        }`}
+                      >
+                        <Text
+                          className={`text-xs font-semibold ${
+                            selected ? 'text-flow-accent' : 'text-flow-muted'
+                          }`}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <TextInput
+                  accessibilityLabel={tracker.name}
+                  className={`min-h-10 rounded-[9px] border border-flow-border bg-flow-raised px-2 text-sm text-flow-text ${
+                    tracker.type === 'number' ? 'w-[85px] text-center' : 'w-[55%]'
+                  }`}
+                  keyboardType={tracker.type === 'number' ? 'decimal-pad' : 'default'}
+                  maxLength={tracker.type === 'text' ? 500 : undefined}
+                  onChangeText={(value) =>
+                    onCustomValueChange(
+                      tracker.id,
+                      tracker.type === 'number' ? value.replace(',', '.') : value,
+                    )
+                  }
+                  placeholder={tracker.type === 'number' ? '—' : 'Wpisz tekst'}
+                  placeholderTextColor="#93A2B9"
+                  value={customValues[tracker.id] ?? ''}
+                />
+              )}
             </View>
           ))}
         </View>

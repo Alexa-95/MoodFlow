@@ -2,7 +2,7 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
-import type { DailyEntry, Tracker, TrackerSnapshot } from './types';
+import type { DailyEntry, Tracker, TrackerSnapshot, TrackerType, TrackerValue } from './types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -43,14 +43,20 @@ export async function loadSnapshot(
   if (!supabase) {
     const data = await getLocalData();
     return {
-      trackers: data.trackers,
+      trackers: data.trackers.map((tracker) => ({
+        ...tracker,
+        type: parseTrackerType(tracker.type),
+      })),
       entries: data.entries.filter((entry) => entry.entryDate >= from && entry.entryDate <= to),
     };
   }
 
   const [{ data: trackerRows, error: trackerError }, { data: entryRows, error: entryError }] =
     await Promise.all([
-      supabase.from('custom_trackers').select('id, name, unit, scale_max').eq('user_id', userId),
+      supabase
+        .from('custom_trackers')
+        .select('id, name, tracker_type, unit, scale_max')
+        .eq('user_id', userId),
       supabase
         .from('daily_entries')
         .select('entry_date, mood, energy, sleep, custom_values')
@@ -67,6 +73,7 @@ export async function loadSnapshot(
     trackers: (trackerRows ?? []).map((row) => ({
       id: row.id,
       name: row.name,
+      type: parseTrackerType(row.tracker_type),
       unit: row.unit ?? '',
       scaleMax: row.scale_max,
     })),
@@ -75,7 +82,7 @@ export async function loadSnapshot(
       mood: row.mood,
       energy: row.energy,
       sleep: row.sleep,
-      customValues: (row.custom_values ?? {}) as Record<string, number>,
+      customValues: (row.custom_values ?? {}) as Record<string, TrackerValue>,
     })),
   };
 }
@@ -107,6 +114,7 @@ export async function saveDailyEntry(userId: string, entry: DailyEntry): Promise
 export async function addCustomTracker(
   userId: string,
   name: string,
+  type: TrackerType,
   unit: string,
   scaleMax: number,
 ): Promise<Tracker> {
@@ -114,6 +122,7 @@ export async function addCustomTracker(
     const tracker = {
       id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name,
+      type,
       unit,
       scaleMax,
     };
@@ -125,9 +134,20 @@ export async function addCustomTracker(
 
   const { data, error } = await supabase
     .from('custom_trackers')
-    .insert({ user_id: userId, name, unit, scale_max: scaleMax })
-    .select('id, name, unit, scale_max')
+    .insert({ user_id: userId, name, tracker_type: type, unit, scale_max: scaleMax })
+    .select('id, name, tracker_type, unit, scale_max')
     .single();
   if (error) throw error;
-  return { id: data.id, name: data.name, unit: data.unit ?? '', scaleMax: data.scale_max };
+  return {
+    id: data.id,
+    name: data.name,
+    type: parseTrackerType(data.tracker_type),
+    unit: data.unit ?? '',
+    scaleMax: data.scale_max,
+  };
+}
+
+function parseTrackerType(value: string | null): TrackerType {
+  if (value === 'text' || value === 'boolean') return value;
+  return 'number';
 }
