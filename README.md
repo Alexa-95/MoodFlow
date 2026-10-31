@@ -11,6 +11,10 @@ classes, shared across native and web targets. Screen and dashboard components
 are kept in `src/components/`, and reusable date/heatmap helpers are in
 `src/lib/dashboard.ts`.
 
+The web app is exported as static assets and served by a Cloudflare Worker.
+Supabase remains the authentication and database service; no separate Worker
+API is required.
+
 ## Set up cloud accounts and storage
 
 1. Create a free project at [supabase.com](https://supabase.com/). Choose a
@@ -53,8 +57,30 @@ are kept in `src/components/`, and reusable date/heatmap helpers are in
 
 - `npm start` — Expo development server
 - `npm run web` — open the web target
+- `npm run build` — export the website into `dist/`
+- `npm run preview` — preview the Worker locally
+- `npm run deploy` — deploy the website to Cloudflare Workers
 - `npm run typecheck` — TypeScript check
 - `npx expo install --check` — verify Expo-compatible package versions
+
+## Deploy the website to Cloudflare Workers
+
+1. Push this project to GitHub and create a Worker from the repository using
+   **Workers Builds**.
+2. Set the build command to `npm run build`. Leave the build output directory
+   empty; `wrangler.jsonc` points the Worker to Expo's `dist/` output.
+3. Keep the deploy command as `npx wrangler deploy`. Set the preview command to
+   `npx wrangler dev`.
+4. Add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` as
+   **build-time environment variables** in the Cloudflare build settings. Expo
+   embeds these `EXPO_PUBLIC_` values into the web bundle during the build.
+   The Supabase publishable/legacy `anon` key is meant to be public; never
+   configure a `service_role` or secret key here.
+5. Add the deployed `workers.dev` address (and any custom domain) to Supabase
+   **Authentication → URL Configuration → Redirect URLs**, and run the
+   `supabase/schema.sql` setup script in the Supabase SQL Editor if not already
+   applied.
+6. Deploy. Changes to the Supabase build variables require a fresh deployment.
 
 Daily, weekly, monthly, and quarterly views show the last 1, 7, 30, or 90 days.
 The pixel color represents the selected numeric or yes/no metric, or an average
