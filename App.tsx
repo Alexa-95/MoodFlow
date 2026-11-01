@@ -1,5 +1,5 @@
 import './global.css';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Text, View, useWindowDimensions } from 'react-native';
 import type { User } from '@supabase/supabase-js';
 import { AuthScreen } from './src/components/AuthScreen';
@@ -21,7 +21,6 @@ import {
   saveDailyEntry,
   supabase,
 } from './src/lib/backend';
-import { PERIOD_DAYS } from './src/lib/types';
 import type { DailyEntry, Period, Tracker, TrackerType, TrackerValue } from './src/lib/types';
 import { describeError } from './src/lib/errors';
 
@@ -43,11 +42,12 @@ export default function App() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [savingEntry, setSavingEntry] = useState(false);
+  const today = localDateKey(new Date());
+  const [selectedDate, setSelectedDate] = useState(today);
   const [mood, setMood] = useState<number | null>(null);
   const [energy, setEnergy] = useState<number | null>(null);
   const [sleep, setSleep] = useState('');
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
-  const initializedUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -80,8 +80,23 @@ export default function App() {
   }, []);
 
   const userId = user?.id ?? (cloudEnabled ? null : 'demo');
-  const today = localDateKey(new Date());
-  const range = useMemo(() => makeRange(period), [period]);
+  const selectedDateValue = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
+  const range = useMemo(() => makeRange(period, selectedDateValue), [period, selectedDateValue]);
+  const calendarMonthStart = new Date(
+    selectedDateValue.getFullYear(),
+    selectedDateValue.getMonth(),
+    1,
+  );
+  const calendarStart = new Date(calendarMonthStart);
+  calendarStart.setDate(calendarStart.getDate() - ((calendarStart.getDay() + 6) % 7));
+  const calendarEnd = new Date(calendarStart);
+  calendarEnd.setDate(calendarEnd.getDate() + 41);
+  const periodStart = range.from < localDateKey(calendarStart) ? range.from : localDateKey(calendarStart);
+  const periodEnd = range.to > localDateKey(calendarEnd) ? range.to : localDateKey(calendarEnd);
+  const snapshotRange = {
+    from: periodStart,
+    to: periodEnd,
+  };
 
   useEffect(() => {
     let active = true;
@@ -89,29 +104,16 @@ export default function App() {
       setLoadingData(false);
       setEntries([]);
       setTrackers([]);
-      initializedUserId.current = null;
       return;
     }
 
     setLoadingData(true);
     setErrorMessage('');
-    loadSnapshot(userId, range.from, range.to)
+    loadSnapshot(userId, snapshotRange.from, snapshotRange.to)
       .then((snapshot) => {
         if (!active) return;
         setTrackers(snapshot.trackers);
         setEntries(snapshot.entries);
-        if (initializedUserId.current !== userId) {
-          const entry = snapshot.entries.find((item) => item.entryDate === today);
-          setMood(entry?.mood ?? null);
-          setEnergy(entry?.energy ?? null);
-          setSleep(entry?.sleep === null || entry?.sleep === undefined ? '' : String(entry.sleep));
-          setCustomValues(
-            Object.fromEntries(
-              Object.entries(entry?.customValues ?? {}).map(([key, value]) => [key, String(value)]),
-            ),
-          );
-          initializedUserId.current = userId;
-        }
       })
       .catch((error: unknown) => {
         if (active) {
@@ -125,7 +127,19 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [userId, range.from, range.to, today]);
+  }, [userId, snapshotRange.from, snapshotRange.to]);
+
+  useEffect(() => {
+    const entry = entries.find((item) => item.entryDate === selectedDate);
+    setMood(entry?.mood ?? null);
+    setEnergy(entry?.energy ?? null);
+    setSleep(entry?.sleep === null || entry?.sleep === undefined ? '' : String(entry.sleep));
+    setCustomValues(
+      Object.fromEntries(
+        Object.entries(entry?.customValues ?? {}).map(([key, value]) => [key, String(value)]),
+      ),
+    );
+  }, [entries, selectedDate]);
 
   const sortedEntries = useMemo(
     () => [...entries].sort((a, b) => a.entryDate.localeCompare(b.entryDate)),
@@ -133,12 +147,34 @@ export default function App() {
   );
 
   const displayEntries = useMemo(() => {
-    const days = PERIOD_DAYS[period];
-    return Array.from({ length: days }, (_, index) => {
-      const date = localDateKey(dateOffset(new Date(), index - days + 1));
+    let dates: string[];
+    if (period === 'day') {
+      dates = [selectedDate];
+    } else if (period === 'week') {
+      const monday = dateOffset(selectedDateValue, -((selectedDateValue.getDay() + 6) % 7));
+      dates = Array.from({ length: 7 }, (_, index) =>
+        localDateKey(dateOffset(monday, index)),
+      );
+    } else if (period === 'quarter') {
+      dates = Array.from({ length: 90 }, (_, index) =>
+        localDateKey(dateOffset(selectedDateValue, index - 89)),
+      );
+    } else {
+      const monthStart = new Date(
+        selectedDateValue.getFullYear(),
+        selectedDateValue.getMonth(),
+        1,
+      );
+      const gridStart = dateOffset(monthStart, -((monthStart.getDay() + 6) % 7));
+      dates = Array.from({ length: 42 }, (_, index) =>
+        localDateKey(dateOffset(gridStart, index)),
+      );
+    }
+
+    return dates.map((date) => {
       const saved = sortedEntries.find((entry) => entry.entryDate === date);
       if (
-        date === today &&
+        date === selectedDate &&
         (mood !== null ||
           energy !== null ||
           sleep !== '' ||
@@ -160,7 +196,7 @@ export default function App() {
           }
         }
         const draft: DailyEntry = {
-          entryDate: today,
+          entryDate: selectedDate,
           mood,
           energy,
           sleep: sleep === '' ? null : Number(sleep),
@@ -172,14 +208,21 @@ export default function App() {
       }
       return saved ?? { entryDate: date, mood: null, energy: null, sleep: null, customValues: {} };
     });
-  }, [customValues, energy, mood, period, sleep, sortedEntries, today, trackers]);
+  }, [customValues, energy, mood, period, selectedDate, selectedDateValue, sleep, sortedEntries, trackers]);
 
   const completedDays = displayEntries.filter(
-    (entry) => metricValue(entry, metric, trackers) !== null,
+    (entry) =>
+      (period !== 'month' || entry.entryDate.slice(0, 7) === selectedDate.slice(0, 7)) &&
+      metricValue(entry, metric, trackers) !== null,
   ).length;
-  const moodValues = sortedEntries.flatMap((entry) => (entry.mood === null ? [] : [entry.mood]));
-  const energyValues = sortedEntries.flatMap((entry) => (entry.energy === null ? [] : [entry.energy]));
-  const sleepValues = sortedEntries.flatMap((entry) => (entry.sleep === null ? [] : [entry.sleep]));
+  const summaryEntries = sortedEntries.filter(
+    (entry) => entry.entryDate >= range.from && entry.entryDate <= range.to,
+  );
+  const moodValues = summaryEntries.flatMap((entry) => (entry.mood === null ? [] : [entry.mood]));
+  const energyValues = summaryEntries.flatMap((entry) =>
+    entry.energy === null ? [] : [entry.energy],
+  );
+  const sleepValues = summaryEntries.flatMap((entry) => (entry.sleep === null ? [] : [entry.sleep]));
 
   async function handleAuth(): Promise<void> {
     if (!supabase) return;
@@ -211,6 +254,14 @@ export default function App() {
 
   async function handleSaveEntry(): Promise<void> {
     if (!userId) return;
+    if (mood !== null && (!Number.isInteger(mood) || mood < -5 || mood > 5)) {
+      setErrorMessage('Nastrój musi mieć wartość od -5 do 5.');
+      return;
+    }
+    if (energy !== null && (!Number.isInteger(energy) || energy < 1 || energy > 10)) {
+      setErrorMessage('Energia musi mieć wartość od 1 do 10.');
+      return;
+    }
     const parsedSleep = sleep.trim() === '' ? null : Number(sleep);
     if (parsedSleep !== null && (!Number.isFinite(parsedSleep) || parsedSleep < 0 || parsedSleep > 24)) {
       setErrorMessage('Sen wpisz jako liczbę godzin od 0 do 24.');
@@ -244,7 +295,7 @@ export default function App() {
     setSavingEntry(true);
     setErrorMessage('');
     const nextEntry: DailyEntry = {
-      entryDate: today,
+      entryDate: selectedDate,
       mood,
       energy,
       sleep: parsedSleep,
@@ -253,7 +304,7 @@ export default function App() {
     try {
       await saveDailyEntry(userId, nextEntry);
       setEntries((previous) => [
-        ...previous.filter((entry) => entry.entryDate !== today),
+        ...previous.filter((entry) => entry.entryDate !== selectedDate),
         nextEntry,
       ]);
     } catch (error) {
@@ -315,6 +366,7 @@ export default function App() {
       energyValues={energyValues}
       entries={displayEntries}
       errorMessage={errorMessage}
+      selectedDate={selectedDate}
       loadingData={loadingData}
       metric={metric}
       mood={mood}
@@ -325,6 +377,7 @@ export default function App() {
       onCustomValueChange={(trackerId, value) =>
         setCustomValues((previous) => ({ ...previous, [trackerId]: value }))
       }
+      onDateChange={setSelectedDate}
       onEnergyChange={setEnergy}
       onMetricChange={setMetric}
       onMoodChange={setMood}

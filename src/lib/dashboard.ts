@@ -10,8 +10,8 @@ export const PERIODS: { id: Period; label: string; caption: string }[] = [
   { id: 'quarter', label: 'Kwartał', caption: '90 dni' },
 ];
 
-export const MOOD_LABELS = ['Bardzo słabo', 'Słabo', 'Średnio', 'Dobrze', 'Świetnie'];
-export const ENERGY_LABELS = ['Brak', 'Niska', 'Umiarkowana', 'Dobra', 'Wysoka'];
+export const MOOD_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
+export const ENERGY_VALUES = Array.from({ length: 10 }, (_, index) => index + 1);
 
 export function localDateKey(date: Date): string {
   const year = date.getFullYear();
@@ -26,11 +26,21 @@ export function dateOffset(date: Date, amount: number): Date {
   return copy;
 }
 
-export function makeRange(period: Period): { from: string; to: string } {
-  const today = new Date();
+export function makeRange(period: Period, anchorDate = new Date()): { from: string; to: string } {
+  if (period === 'day') {
+    const date = localDateKey(anchorDate);
+    return { from: date, to: date };
+  }
+  if (period === 'week') {
+    const monday = dateOffset(anchorDate, -((anchorDate.getDay() + 6) % 7));
+    return {
+      from: localDateKey(monday),
+      to: localDateKey(dateOffset(monday, 6)),
+    };
+  }
   return {
-    from: localDateKey(dateOffset(today, -(PERIOD_DAYS[period] - 1))),
-    to: localDateKey(today),
+    from: localDateKey(dateOffset(anchorDate, -(PERIOD_DAYS[period] - 1))),
+    to: localDateKey(anchorDate),
   };
 }
 
@@ -45,8 +55,8 @@ export function isEntryFilled(entry: DailyEntry): boolean {
 
 function getMetricValues(entry: DailyEntry, trackers: Tracker[]): number[] {
   return [
-    ...(entry.mood === null ? [] : [entry.mood / 5]),
-    ...(entry.energy === null ? [] : [entry.energy / 5]),
+    ...(entry.mood === null ? [] : [(entry.mood + 5) / 10]),
+    ...(entry.energy === null ? [] : [(entry.energy - 1) / 9]),
     ...(entry.sleep === null ? [] : [Math.min(entry.sleep / 10, 1)]),
     ...trackers.flatMap((tracker) => {
       if (tracker.type === 'text') return [];
@@ -68,8 +78,8 @@ export function metricValue(
     const values = getMetricValues(entry, trackers);
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   }
-  if (key === 'mood') return entry.mood === null ? null : entry.mood / 5;
-  if (key === 'energy') return entry.energy === null ? null : entry.energy / 5;
+  if (key === 'mood') return entry.mood === null ? null : (entry.mood + 5) / 10;
+  if (key === 'energy') return entry.energy === null ? null : (entry.energy - 1) / 9;
   if (key === 'sleep') return entry.sleep === null ? null : Math.min(entry.sleep / 10, 1);
   const tracker = trackers.find((item) => item.id === key);
   const value = entry.customValues[key];

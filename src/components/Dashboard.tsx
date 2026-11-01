@@ -18,6 +18,7 @@ type Props = {
   metric: MetricKey;
   trackers: Tracker[];
   entries: DailyEntry[];
+  selectedDate: string;
   today: string;
   completedDays: number;
   loadingData: boolean;
@@ -33,6 +34,7 @@ type Props = {
   onCloseError: () => void;
   onPeriodChange: (period: Period) => void;
   onMetricChange: (metric: MetricKey) => void;
+  onDateChange: (date: string) => void;
   onMoodChange: (value: number | null) => void;
   onEnergyChange: (value: number | null) => void;
   onSleepChange: (value: string) => void;
@@ -55,6 +57,7 @@ export function Dashboard({
   metric,
   trackers,
   entries,
+  selectedDate,
   today,
   completedDays,
   loadingData,
@@ -70,6 +73,7 @@ export function Dashboard({
   onCloseError,
   onPeriodChange,
   onMetricChange,
+  onDateChange,
   onMoodChange,
   onEnergyChange,
   onSleepChange,
@@ -109,13 +113,16 @@ export function Dashboard({
                 energy={energy}
                 mood={mood}
                 onCustomValueChange={onCustomValueChange}
+                onDateChange={onDateChange}
                 onEnergyChange={onEnergyChange}
                 onMoodChange={onMoodChange}
                 onSave={onSaveEntry}
                 onSleepChange={onSleepChange}
                 saving={savingEntry}
+                selectedDate={selectedDate}
                 sleep={sleep}
                 trackers={trackers}
+                today={today}
               />
               <HeatmapCard
                 completedDays={completedDays}
@@ -124,7 +131,9 @@ export function Dashboard({
                 metric={metric}
                 onMetricChange={onMetricChange}
                 onPeriodChange={onPeriodChange}
+                onDateChange={onDateChange}
                 period={period}
+                selectedDate={selectedDate}
                 today={today}
                 trackers={trackers}
               />

@@ -24,13 +24,13 @@ export function SummaryCard({ period, moodValues, energyValues, sleepValues }: P
         <SummaryRow
           color="#9DDD77"
           label="Średni nastrój"
-          suffix="/ 5"
+          suffix=" (-5 do 5)"
           value={formatAverage(moodValues)}
         />
         <SummaryRow
           color="#52C8B2"
           label="Średnia energia"
-          suffix="/ 5"
+          suffix="/ 10"
           value={formatAverage(energyValues)}
         />
         <SummaryRow

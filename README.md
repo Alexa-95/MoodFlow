@@ -25,7 +25,7 @@ API is required.
    tracker and daily-entry tables, adds the tracker value type to an existing
    table if needed, and restricts each account to its own rows with Row Level
    Security (RLS). If your tables already exist, run the updated SQL script
-   again to add the new tracker type column.
+   again to add the new tracker type column and update the mood/energy ranges.
 3. In **Project Settings → API** (or **Connect**), copy the Project URL and the
    publishable key (`sb_publishable_...`). The legacy `anon` key is also usable.
    Never put a `service_role` or secret key in this app.
@@ -82,6 +82,8 @@ API is required.
    applied.
 6. Deploy. Changes to the Supabase build variables require a fresh deployment.
 
-Daily, weekly, monthly, and quarterly views show the last 1, 7, 30, or 90 days.
-The pixel color represents the selected numeric or yes/no metric, or an average
-of available numeric and yes/no metrics for that day. Text values are excluded.
+Daily, weekly, monthly, and quarterly views show a day, Monday-to-Sunday week,
+calendar month, or rolling 90-day period. Mood is measured from -5 to 5 and
+energy from 1 to 10. The pixel color represents the selected numeric or yes/no
+metric, or an average of available numeric and yes/no metrics for that day.
+Text values are excluded.

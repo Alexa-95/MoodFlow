@@ -1,5 +1,10 @@
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { ENERGY_LABELS, MOOD_LABELS } from '../lib/dashboard';
+import {
+  dateOffset,
+  ENERGY_VALUES,
+  localDateKey,
+  MOOD_VALUES,
+} from '../lib/dashboard';
 import type { Tracker } from '../lib/types';
 import { PrimaryButton } from './ui/PrimaryButton';
 
@@ -9,11 +14,14 @@ type Props = {
   sleep: string;
   customValues: Record<string, string>;
   trackers: Tracker[];
+  selectedDate: string;
+  today: string;
   saving: boolean;
   onMoodChange: (value: number | null) => void;
   onEnergyChange: (value: number | null) => void;
   onSleepChange: (value: string) => void;
   onCustomValueChange: (trackerId: string, value: string) => void;
+  onDateChange: (date: string) => void;
   onSave: () => void;
 };
 
@@ -23,11 +31,15 @@ const inputClassName =
 function RatingScale({
   label,
   values,
+  lowLabel,
+  highLabel,
   selectedValue,
   onChange,
 }: {
   label: string;
-  values: string[];
+  values: number[];
+  lowLabel: string;
+  highLabel: string;
   selectedValue: number | null;
   onChange: (value: number | null) => void;
 }) {
@@ -35,15 +47,14 @@ function RatingScale({
     <>
       <Text className="mb-[9px] text-xs font-semibold text-[#D7DFEB]">{label}</Text>
       <View className="flex-row gap-[7px]">
-        {values.map((caption, index) => {
-          const value = index + 1;
+        {values.map((value) => {
           const selected = selectedValue === value;
           return (
             <Pressable
-              key={caption}
-              accessibilityLabel={`${value}: ${caption}`}
+              key={value}
+              accessibilityLabel={`${label}: ${value}`}
               accessibilityRole="button"
-              className={`h-[61px] min-w-0 flex-1 items-center justify-center rounded-[11px] border px-[3px] ${
+              className={`h-[42px] min-w-0 flex-1 items-center justify-center rounded-[9px] border px-[1px] ${
                 selected
                   ? 'border-flow-accent bg-flow-accent-dark'
                   : 'border-flow-raised bg-flow-raised'
@@ -51,19 +62,17 @@ function RatingScale({
               onPress={() => onChange(selected ? null : value)}
             >
               <Text
-                className={`text-[17px] font-bold ${selected ? 'text-flow-accent' : 'text-[#D5DDE9]'}`}
+                className={`text-[13px] font-bold ${selected ? 'text-flow-accent' : 'text-[#D5DDE9]'}`}
               >
                 {value}
-              </Text>
-              <Text
-                className={`mt-1 text-[8px] ${selected ? 'text-[#D7EACB]' : 'text-flow-muted'}`}
-                numberOfLines={1}
-              >
-                {caption}
               </Text>
             </Pressable>
           );
         })}
+      </View>
+      <View className="mt-1 flex-row justify-between">
+        <Text className="text-[9px] text-flow-muted">{lowLabel}</Text>
+        <Text className="text-[9px] text-flow-muted">{highLabel}</Text>
       </View>
     </>
   );
@@ -75,13 +84,28 @@ export function DailyCheckInCard({
   sleep,
   customValues,
   trackers,
+  selectedDate,
+  today,
   saving,
   onMoodChange,
   onEnergyChange,
   onSleepChange,
   onCustomValueChange,
+  onDateChange,
   onSave,
 }: Props) {
+  const selectedDateValue = new Date(`${selectedDate}T00:00:00`);
+  const selectedDateLabel = selectedDateValue.toLocaleDateString('pl-PL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  function changeDay(offset: number): void {
+    const nextDate = localDateKey(dateOffset(selectedDateValue, offset));
+    if (nextDate <= today) onDateChange(nextDate);
+  }
+
   return (
     <View className="rounded-[18px] border border-flow-border bg-flow-surface p-[22px]">
       <View className="mb-[22px] flex-row items-center justify-between gap-3">
@@ -96,18 +120,52 @@ export function DailyCheckInCard({
         <View className="h-[9px] w-[9px] rounded-full bg-flow-accent" />
       </View>
 
+      <View className="mb-[18px] flex-row items-center justify-between gap-2 rounded-[11px] border border-flow-border bg-flow-raised px-3 py-2.5">
+        <Pressable
+          accessibilityLabel="Poprzedni dzień"
+          accessibilityRole="button"
+          className="rounded-[8px] border border-flow-border px-3 py-2 active:opacity-80"
+          onPress={() => changeDay(-1)}
+        >
+          <Text className="text-xs font-semibold text-flow-text">← dzień</Text>
+        </Pressable>
+        <View className="flex-1 items-center">
+          <Text className="text-[9px] font-bold tracking-[1.2px] text-flow-muted">
+            WYBRANA DATA
+          </Text>
+          <Text className="mt-1 text-[13px] font-semibold text-flow-text">
+            {selectedDateLabel}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityLabel="Następny dzień"
+          accessibilityRole="button"
+          className={`rounded-[8px] border border-flow-border px-3 py-2 ${
+            selectedDate >= today ? 'opacity-40' : 'active:opacity-80'
+          }`}
+          disabled={selectedDate >= today}
+          onPress={() => changeDay(1)}
+        >
+          <Text className="text-xs font-semibold text-flow-text">dzień →</Text>
+        </Pressable>
+      </View>
+
       <RatingScale
         label="Nastrój"
+        lowLabel="-5 • bardzo źle"
+        highLabel="5 • świetnie"
         onChange={onMoodChange}
         selectedValue={mood}
-        values={MOOD_LABELS}
+        values={MOOD_VALUES}
       />
       <View className="mt-5">
         <RatingScale
           label="Energia"
+          lowLabel="1 • bardzo niska"
+          highLabel="10 • bardzo wysoka"
           onChange={onEnergyChange}
           selectedValue={energy}
-          values={ENERGY_LABELS}
+          values={ENERGY_VALUES}
         />
       </View>
 
@@ -200,7 +258,7 @@ export function DailyCheckInCard({
 
       <PrimaryButton
         disabled={saving}
-        label={saving ? 'Zapisywanie…' : 'Zapisz dzisiejszy wpis'}
+        label={saving ? 'Zapisywanie…' : `Zapisz wpis z ${selectedDateLabel}`}
         loading={saving}
         onPress={onSave}
       />

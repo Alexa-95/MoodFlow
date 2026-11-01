@@ -11,9 +11,19 @@ type Props = {
 export function DashboardHeader({ narrowLayout, cloudEnabled, email, onSignOut }: Props) {
   return (
     <>
-      <View className="mb-7 min-h-[82px] flex-row items-center justify-between border-b border-[#182236]">
+      <View
+        className={`mb-7 min-h-[82px] border-b border-[#182236] ${
+          narrowLayout
+            ? 'flex-col items-start pb-4 pt-3'
+            : 'flex-row items-center justify-between'
+        }`}
+      >
         <Brand />
-        <View className="max-w-[60%] flex-row items-center gap-3">
+        <View
+          className={`flex-row items-center gap-3 ${
+            narrowLayout ? 'mt-3 w-full justify-end' : 'max-w-[60%]'
+          }`}
+        >
           {cloudEnabled ? (
             <>
               <Text className="max-w-[190px] text-[13px] text-flow-muted" numberOfLines={1}>

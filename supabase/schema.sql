@@ -17,13 +17,21 @@ create table if not exists public.daily_entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   entry_date date not null,
-  mood smallint check (mood between 1 and 5),
-  energy smallint check (energy between 1 and 5),
+  mood smallint check (mood between -5 and 5),
+  energy smallint check (energy between 1 and 10),
   sleep numeric(4, 1) check (sleep between 0 and 24),
   custom_values jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   unique (user_id, entry_date)
 );
+
+alter table public.daily_entries
+  drop constraint if exists daily_entries_mood_check,
+  drop constraint if exists daily_entries_energy_check;
+
+alter table public.daily_entries
+  add constraint daily_entries_mood_check check (mood between -5 and 5),
+  add constraint daily_entries_energy_check check (energy between 1 and 10);
 
 alter table public.custom_trackers enable row level security;
 alter table public.daily_entries enable row level security;
